@@ -5,7 +5,7 @@ Tags: reading time, estimated reading time, shortcode, post meta, simple plugin
 Requires at least: 6.3
 Tested up to: 6.9
 Requires PHP: 7.2
-Stable tag: 2.1
+Stable tag: 2.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,14 @@ Yes, as long as they support `the_content`.
 2. Simple settings panel under "Posts".
 
 == Changelog ==
+
+= 2.2 =
+* Improved performance by storing reading time as post meta instead of calculating on every request.
+* Faster and more reliable sorting of reading time column in admin post lists.
+* Added proper text domain loading (sam-reading-time) for full translation support.
+* More stable and accurate Schema.org timeRequired JSON-LD output.
+* Minor UI refinements in admin settings page with a cleaner, more minimal red theme.
+* Better handling of translated content for Polylang and WPML.
 
 = 2.0 =
 * Added admin post list column to display reading time for all post types.
