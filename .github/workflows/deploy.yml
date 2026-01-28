@@ -22,7 +22,7 @@ jobs:
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.SAM_GIT_TOKEN }} 
 
       - name: Upload zip to release
         uses: softprops/action-gh-release@v2
