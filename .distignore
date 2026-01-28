@@ -1,0 +1,10 @@
+.git
+.github
+.gitignore
+
+README.md
+LICENSE.txt
+
+assets
+
+.distignore
