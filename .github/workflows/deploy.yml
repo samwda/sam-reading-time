@@ -1,43 +1,32 @@
-name: Deploy to WordPress.org Repository
+name: SAM Deploy System
 
 on:
   release:
     types: [released]
 
 jobs:
-  deploy:
-    name: Deploy to WP.org
+  deploy-plugin:
+    name: Deploy Plugin to WP.org
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 🚀 Deploy plugin code (trunk + tags)
-      - name: Deploy plugin to WordPress.org
+      - name: Deploy plugin folder
         uses: 10up/action-wordpress-plugin-deploy@stable
         with:
-          plugin_slug: sam-reading-time
+          plugin_slug: sam-scroll-master
           build_dir: plugin
           generate-zip: true
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
 
-      # 🎨 Deploy WordPress.org assets + readme.txt
-      - name: Deploy WordPress.org assets
-        uses: 10up/action-wordpress-plugin-assets@stable
-        with:
-          plugin_slug: sam-reading-time
-        env:
-          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
-          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
-
-      # 📦 Upload zip to GitHub Release
-      - name: Upload release asset
+      - name: Upload zip to release
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: |
-            *.zip
+          files: "*.zip"
