@@ -26,8 +26,16 @@ jobs:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Rename zip with clean version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          for file in $(find . -name "*.zip"); do
+            mv "$file" "sam-reading-time.${VERSION}.zip"
+          done
 
       - name: Upload zip to release
         uses: softprops/action-gh-release@v2
         with:
-          files: "**/*.zip"
+          files: sam-reading-time.${{ env.VERSION }}.zip
