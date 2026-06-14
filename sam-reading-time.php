@@ -745,13 +745,15 @@ class Sam_Reading_Time_Plugin {
      * Removes shortcodes, images, videos, and HTML tags for accurate reading time calculation.
      */
     private function clean_content_for_reading_time( $content ) {
-        $content = strip_shortcodes( $content );
-        $content = preg_replace( '/<pre.*?<\/pre>|<code.*?<\/code>/is', '', $content );
-        $content = preg_replace( '/<img[^>]+>|<video.*?<\/video>/is', '', $content );
-        $content = wp_strip_all_tags( $content );
-        $content = preg_replace( '/\s+/u', ' ', $content );
-        return trim( $content );
-    }
+    $content = strip_shortcodes( $content );
+    $content = preg_replace( '/<pre.*?<\/pre>|<code.*?<\/code>/is', '', $content );
+    $content = preg_replace( '/\[code\].*?\[\/code\]/is', '', $content );
+    $content = preg_replace( '/\[sourcecode\].*?\[\/sourcecode\]/is', '', $content );
+    $content = preg_replace( '/<img[^>]+>|<video.*?<\/video>/is', '', $content );
+    $content = wp_strip_all_tags( $content );
+    $content = preg_replace( '/\s+/u', ' ', $content );
+    return trim( $content );
+}
 
     /**
      * Retrieves the reading time from post meta or calculates it if not present.
