@@ -16,17 +16,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy plugin folder
+      - name: Deploy plugin to WordPress.org
         uses: 10up/action-wordpress-plugin-deploy@stable
-        with:
-          plugin_slug: sam-scroll-master
-          build_dir: plugin
-          generate-zip: true
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Rename zip with clean version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
