@@ -3,9 +3,9 @@ Contributors: samwda, smahjoob
 Donate link: https://samwda.ir
 Tags: reading time, estimated reading time, shortcode, post meta, simple plugin
 Requires at least: 6.3
-Tested up to: 6.9
+Tested up to: 7.0
 Requires PHP: 7.2
-Stable tag: 2.2
+Stable tag: 2.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,9 @@ Yes, as long as they support `the_content`.
 2. Simple settings panel under "Posts".
 
 == Changelog ==
+
+= 2.3 =
+* Better text parsing for precise reading time estimation and minor bug fixes.
 
 = 2.2 =
 * Improved performance by storing reading time as post meta instead of calculating on every request.
