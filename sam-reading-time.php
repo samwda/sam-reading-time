@@ -3,7 +3,7 @@
  * Plugin Name: Sam Reading Time
  * Plugin URI:  https://github.com/samwda/sam-reading-time
  * Description: A lightweight WordPress plugin to display the estimated reading time of posts and pages using the [sam_reading_time] shortcode.
- * Version:     2.2
+ * Version:     2.3
  * Author:      SAM Web Design Agency
  * Author URI:  https://samwda.ir
  * License:     GPLv2
@@ -748,6 +748,7 @@ class Sam_Reading_Time_Plugin {
     $content = strip_shortcodes( $content );
     $content = preg_replace( '/<pre.*?<\/pre>|<code.*?<\/code>/is', '', $content );
     $content = preg_replace( '/\[code\].*?\[\/code\]/is', '', $content );
+    $content = preg_replace( '/<table.*?<\/table>/is', '', $content );
     $content = preg_replace( '/\[sourcecode\].*?\[\/sourcecode\]/is', '', $content );
     $content = preg_replace( '/<img[^>]+>|<video.*?<\/video>/is', '', $content );
     $content = wp_strip_all_tags( $content );
