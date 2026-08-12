@@ -11,11 +11,13 @@
 ## ✨ Features
 
 - Estimate reading time based on word count
-- Lightweight and easy to use
+- Massively lightweight and optimized codebase
 - Works via `[sam_reading_time]` shortcode
-- No settings page or database queries
 - Clean output – fully theme-compatible
 - Translation-ready and extendable
+- Automatically recalculates times when WPM changes
+- SEO plugin conflict warnings
+- Requires **WordPress 6.3+** and **PHP 7.2+**
 
 ---
 
@@ -38,7 +40,7 @@ To display the reading time anywhere in your post, simply add the following shor
 
 This will output something like:
 
-> Reading Time: 4 minutes
+> [time] minutes read
 
 You can place this shortcode in:
 
@@ -65,6 +67,8 @@ For example:
 - 765 words / 200 = 3.825
 - Rounded = 4 minutes
 
+*Note: If you change the WPM setting, all existing posts will automatically have their reading time recalculated.*
+
 ---
 
 ## 🌍 SEO & Rich Snippets
@@ -72,6 +76,8 @@ For example:
 - Supports Schema.org `timeRequired` JSON-LD for Google Rich Snippets.
 - Can be toggled on/off in settings.
 - Enhances search visibility and user engagement.
+- The schema output is now independent of the shortcode, working seamlessly on all singular pages.
+- If you use plugins like Yoast SEO or Rank Math, the plugin will display an admin notice to prevent schema conflicts.
 
 ---
 
