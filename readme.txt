@@ -3,9 +3,9 @@ Contributors: samwda, smahjoob
 Donate link: https://samwda.ir
 Tags: reading time, estimated reading time, shortcode, post meta, simple plugin
 Requires at least: 6.3
-Tested up to: 7.0
+Tested up to: 7.0.4
 Requires PHP: 7.2
-Stable tag: 2.3
+Stable tag: 2.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,8 +24,8 @@ Includes a minimal settings page directly accessible under the "Posts" admin men
 - Compatible with all post types
 - Easy to use and theme-friendly
 - No external dependencies or JS
--SEO & Rich Snippets
--Multilingual Support
+- SEO & Rich Snippets
+- Multilingual Support
 
 == Installation ==
 
@@ -52,7 +52,7 @@ Settings can be accessed via **Posts > Reading Time Settings**, where you can ad
 == Frequently Asked Questions ==
 
 = Can I change the reading speed? =
-Yes. You can adjust the WPM value from the settings page.
+Yes. You can adjust the WPM value from the settings page. All existing posts will be automatically recalculated upon saving.
 
 = Where is the settings page? =
 Under the WordPress Dashboard menu: `Posts > Reading Time Settings`.
@@ -66,6 +66,14 @@ Yes, as long as they support `the_content`.
 2. Simple settings panel under "Posts".
 
 == Changelog ==
+
+= 2.4 =
+* Massively lighter codebase: Removed unnecessary comments and optimized logic for a smaller footprint.
+* Decoupled Schema.org output from shortcode; now works independently on singular pages.
+* Added admin notice warning for potential SEO plugin Schema conflicts (Yoast, RankMath, etc.).
+* Changed format variables from %1$s to a more semantic [time] block in settings.
+* Added automatic recalculation of reading time meta when WPM setting is updated.
+* Excluded non-content post types like Media (attachments) from reading time calculations.
 
 = 2.3 =
 * Better text parsing for precise reading time estimation and minor bug fixes.
@@ -91,6 +99,9 @@ Yes, as long as they support `the_content`.
 * Initial public release with shortcode and settings page.
 
 == Upgrade Notice ==
+= 2.4 =
+This update introduces automatic recalculation of reading times when WPM changes, independent Schema output, and improved SEO plugin compatibility. The plugin is now significantly lighter.
+
 = 2.0.0 =
 This update introduces a major upgrade:
 
