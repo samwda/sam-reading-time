@@ -3,6 +3,7 @@ name: SAM Deploy System
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,21 +18,34 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy plugin to WordPress.org
+        id: deploy
         uses: 10up/action-wordpress-plugin-deploy@stable
+        with:
+          generate-zip: true
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rename zip with clean version
+      - name: Prepare versioned ZIP
+        env:
+          ZIP_PATH: ${{ steps.deploy.outputs.zip-path }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          for file in $(find . -name "*.zip"); do
-            mv "$file" "sam-reading-time.${VERSION}.zip"
-          done
 
-      - name: Upload zip to release
-        uses: softprops/action-gh-release@v2
+          if [ -z "$ZIP_PATH" ] || [ ! -f "$ZIP_PATH" ]; then
+            echo "::error::Generated ZIP file not found: $ZIP_PATH"
+            exit 1
+          fi
+
+          cp "$ZIP_PATH" "sam-reading-time.${VERSION}.zip"
+
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+          ls -lh "sam-reading-time.${VERSION}.zip"
+
+      - name: Upload ZIP to GitHub Release
+        uses: softprops/action-gh-release@v3
         with:
           files: sam-reading-time.${{ env.VERSION }}.zip
+          fail_on_unmatched_files: true
+          token: ${{ github.token }}
