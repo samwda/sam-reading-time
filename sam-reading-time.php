@@ -3,7 +3,7 @@
  * Plugin Name: Sam Reading Time
  * Plugin URI:  https://github.com/samwda/sam-reading-time
  * Description: A lightweight WordPress plugin to display the estimated reading time of posts and pages using the [sam_reading_time] shortcode.
- * Version:     2.4
+ * Version:     2.5
  * Author:      SAM Web Design Agency
  * Author URI:  https://samwda.ir
  * License:     GPLv2
@@ -164,13 +164,26 @@ class Sam_Reading_Time_Plugin {
             }
         }
 
-        $final_output = $prefix_text . $formatted_reading_time . $suffix_text;
+        // Settings are plain text, not HTML. Escape them at output to prevent
+        // stored markup from being interpreted by the browser.
+        $final_output = esc_html( $prefix_text . $formatted_reading_time . $suffix_text );
 
         if ( $enable_debug_output ) {
-            $final_output .= ' <span style="font-size:0.8em; opacity:0.7; direction:ltr; text-align:left; background-color: #f0f0f0; padding: 2px 5px; border-radius: 3px;">(' . sprintf( esc_html__( 'Words: %1$s, Raw Time: %2$s', 'sam-reading-time' ), absint( $word_count ), number_format( $raw_reading_time, 2 ) ) . ')</span>';
+            $debug_text = sprintf(
+                esc_html__( 'Words: %1$s, Raw Time: %2$s', 'sam-reading-time' ),
+                absint( $word_count ),
+                esc_html( number_format( $raw_reading_time, 2 ) )
+            );
+            $final_output .= ' <span style="font-size:0.8em; opacity:0.7; direction:ltr; text-align:left; background-color: #f0f0f0; padding: 2px 5px; border-radius: 3px;">(' . $debug_text . ')</span>';
         }
 
-        return '<' . esc_attr( $wrapper_tag ) . ' class="reading-time">' . $final_output . '</' . esc_attr( $wrapper_tag ) . '>';
+        // Keep the wrapper constrained to the tags offered in the settings UI.
+        $allowed_wrapper_tags = array( 'span', 'div', 'p', 'strong', 'em' );
+        if ( ! in_array( $wrapper_tag, $allowed_wrapper_tags, true ) ) {
+            $wrapper_tag = 'span';
+        }
+
+        return '<' . $wrapper_tag . ' class="reading-time">' . $final_output . '</' . $wrapper_tag . '>';
     }
 
     public function add_admin_menu() {
@@ -364,13 +377,80 @@ class Sam_Reading_Time_Plugin {
         return $columns;
     }
 
-    public function reading_time_orderby_query( $query ) {
-        if ( ! is_admin() || ! $query->is_main_query() ) return;
-        
-        if ( 'reading_time' === $query->get( 'orderby' ) ) {
-            $query->set( 'meta_key', 'sam_reading_time_minutes' );
-            $query->set( 'orderby', 'meta_value_num' );
+    /**
+     * Populate missing or outdated cache metadata before sorting by reading time.
+     * Without this backfill, posts created before the cache existed are omitted
+     * by WP_Query's meta_key join when the user sorts the admin list.
+     */
+    private function backfill_reading_time_cache_for_sorting( $post_types ) {
+        if ( empty( $post_types ) ) {
+            $post_types = array( 'post' );
         }
+        $post_types = (array) $post_types;
+
+        if ( in_array( 'any', $post_types, true ) ) {
+            $post_types = get_post_types( array( 'public' => true ), 'names' );
+        }
+
+        $excluded_types = array( 'attachment', 'elementor_library', 'product' );
+        $post_types     = array_values( array_diff( $post_types, $excluded_types ) );
+        if ( empty( $post_types ) ) {
+            return;
+        }
+
+        $wpm        = max( 1, (int) get_option( 'sam_reading_time_words_per_minute', 200 ) );
+        $batch_size = 100;
+
+        // Repeatedly request the first batch of stale records. Each processed
+        // record stops matching the query, so no growing OFFSET is necessary.
+        do {
+            $missing_query = new WP_Query( array(
+                'post_type'      => $post_types,
+                'post_status'    => 'any',
+                'posts_per_page' => $batch_size,
+                'fields'         => 'ids',
+                'orderby'        => 'ID',
+                'order'          => 'ASC',
+                'no_found_rows'  => true,
+                'meta_query'     => array(
+                    'relation' => 'OR',
+                    array(
+                        'key'     => 'sam_reading_time_minutes',
+                        'compare' => 'NOT EXISTS',
+                    ),
+                    array(
+                        'key'     => '_sam_reading_time_wpm',
+                        'compare' => 'NOT EXISTS',
+                    ),
+                    array(
+                        'key'     => '_sam_reading_time_wpm',
+                        'value'   => $wpm,
+                        'compare' => '!=',
+                        'type'    => 'NUMERIC',
+                    ),
+                ),
+            ) );
+
+            $post_ids = (array) $missing_query->posts;
+            foreach ( $post_ids as $post_id ) {
+                $this->calculate_and_store_reading_time( $post_id, $wpm );
+            }
+            wp_reset_postdata();
+        } while ( count( $post_ids ) === $batch_size );
+    }
+
+    public function reading_time_orderby_query( $query ) {
+        if ( ! is_admin() || ! $query->is_main_query() ) {
+            return;
+        }
+
+        if ( 'reading_time' !== $query->get( 'orderby' ) ) {
+            return;
+        }
+
+        $this->backfill_reading_time_cache_for_sorting( $query->get( 'post_type' ) );
+        $query->set( 'meta_key', 'sam_reading_time_minutes' );
+        $query->set( 'orderby', 'meta_value_num' );
     }
 
     private function clean_content_for_reading_time( $content ) {
@@ -385,100 +465,194 @@ class Sam_Reading_Time_Plugin {
         return trim( $content );
     }
 
-    public function get_reading_time( $post_id ) {
-        $meta = get_post_meta( $post_id, 'sam_reading_time_minutes', true );
-        if ( $meta !== '' && $meta !== false ) return (int) $meta;
+    /**
+     * Calculate and persist reading time for one specific post.
+     *
+     * Each language translation is a separate WordPress post. The cache must
+     * therefore be calculated from this post ID's own content, not from a
+     * translation selected using whichever language happens to be active.
+     */
+    private function calculate_and_store_reading_time( $post_id, $words_per_minute = null ) {
+        $post = get_post( $post_id );
+        if ( ! $post instanceof WP_Post ) {
+            return 0;
+        }
 
-        $content = $this->get_translated_content( $post_id );
+        $content    = (string) $post->post_content;
         $word_count = $this->count_words( $this->clean_content_for_reading_time( $content ) );
-        $wpm = get_option( 'sam_reading_time_words_per_minute', 200 );
-        $minutes = $word_count ? (int) ceil( $word_count / max( 1, (int) $wpm ) ) : 0;
+        $wpm        = null === $words_per_minute
+            ? (int) get_option( 'sam_reading_time_words_per_minute', 200 )
+            : (int) $words_per_minute;
+        $wpm        = max( 1, $wpm );
+        $minutes    = $word_count ? (int) ceil( $word_count / $wpm ) : 0;
 
         update_post_meta( $post_id, 'sam_reading_time_minutes', $minutes );
+        update_post_meta( $post_id, '_sam_reading_time_wpm', $wpm );
+        update_post_meta( $post_id, '_sam_reading_time_content_hash', md5( $content ) );
+
         return $minutes;
     }
 
+    public function get_reading_time( $post_id ) {
+        $post = get_post( $post_id );
+        if ( ! $post instanceof WP_Post ) {
+            return 0;
+        }
+
+        $wpm          = max( 1, (int) get_option( 'sam_reading_time_words_per_minute', 200 ) );
+        $meta          = get_post_meta( $post_id, 'sam_reading_time_minutes', true );
+        $cached_wpm    = (int) get_post_meta( $post_id, '_sam_reading_time_wpm', true );
+        $cached_hash   = get_post_meta( $post_id, '_sam_reading_time_content_hash', true );
+        $current_hash  = md5( (string) $post->post_content );
+
+        // Old cache entries (created before cache markers existed), changed
+        // content, and changed WPM settings are recalculated automatically.
+        if ( $meta !== '' && false !== $meta && $cached_wpm === $wpm && $cached_hash === $current_hash ) {
+            return max( 0, (int) $meta );
+        }
+
+        return $this->calculate_and_store_reading_time( $post_id, $wpm );
+    }
+
     public function update_reading_time_meta( $post_id, $post = null ) {
-        if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) return;
+        if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+            return;
+        }
 
-        if ( ! $post ) $post = get_post( $post_id );
+        if ( ! $post instanceof WP_Post ) {
+            $post = get_post( $post_id );
+        }
+        if ( ! $post instanceof WP_Post ) {
+            return;
+        }
 
-        $post_type = get_post_type( $post_id );
-        if ( ! $post_type || ! post_type_supports( $post_type, 'editor' ) ) return;
-        
+        $post_type = $post->post_type;
+        if ( ! $post_type || ! post_type_supports( $post_type, 'editor' ) ) {
+            return;
+        }
+
         $excluded_types = array( 'attachment', 'elementor_library', 'product' );
-        if ( in_array( $post_type, $excluded_types, true ) ) return;
+        if ( in_array( $post_type, $excluded_types, true ) ) {
+            return;
+        }
 
-        $content = $this->get_translated_content( $post_id );
-        $word_count = $this->count_words( $this->clean_content_for_reading_time( $content ) );
-        $wpm = get_option( 'sam_reading_time_words_per_minute', 200 );
-        $minutes = $word_count ? (int) ceil( $word_count / max( 1, (int) $wpm ) ) : 0;
-
-        update_post_meta( $post_id, 'sam_reading_time_minutes', $minutes );
+        $this->calculate_and_store_reading_time( $post_id );
     }
 
     public function recalculate_all_posts_reading_time( $old_value, $new_value ) {
-        if ( $old_value === $new_value ) return;
-
-        $post_types = get_post_types( [ 'public' => true ], 'names' );
-        $excluded_types = array( 'attachment', 'elementor_library', 'product' );
-        $valid_types = array_diff( $post_types, $excluded_types );
-
-        $args = array(
-            'post_type'      => $valid_types,
-            'post_status'    => 'any',
-            'posts_per_page' => -1,
-            'fields'         => 'ids',
-            'no_found_rows'  => true,
-        );
-        $query = new WP_Query( $args );
-
-        foreach ( $query->posts as $post_id ) {
-            $content = $this->get_translated_content( $post_id );
-            $word_count = $this->count_words( $this->clean_content_for_reading_time( $content ) );
-            $wpm = max( 1, (int) $new_value );
-            $minutes = $word_count ? (int) ceil( $word_count / $wpm ) : 0;
-            update_post_meta( $post_id, 'sam_reading_time_minutes', $minutes );
+        if ( (int) $old_value === (int) $new_value ) {
+            return;
         }
+
+        $post_types    = get_post_types( array( 'public' => true ), 'names' );
+        $excluded_types = array( 'attachment', 'elementor_library', 'product' );
+        $valid_types   = array_values( array_diff( $post_types, $excluded_types ) );
+        if ( empty( $valid_types ) ) {
+            return;
+        }
+
+        // Process a bounded page of IDs at a time instead of loading every
+        // post ID into PHP memory in one WP_Query on larger sites.
+        $batch_size = 100;
+        $page       = 1;
+        $wpm        = max( 1, (int) $new_value );
+
+        do {
+            $query = new WP_Query( array(
+                'post_type'      => $valid_types,
+                'post_status'    => 'any',
+                'posts_per_page' => $batch_size,
+                'paged'          => $page,
+                'fields'         => 'ids',
+                'orderby'        => 'ID',
+                'order'          => 'ASC',
+                'no_found_rows'  => true,
+            ) );
+
+            $batch_count = count( $query->posts );
+            foreach ( $query->posts as $post_id ) {
+                $this->calculate_and_store_reading_time( $post_id, $wpm );
+            }
+
+            wp_reset_postdata();
+            ++$page;
+        } while ( $batch_count === $batch_size );
     }
 
     public function add_time_required_jsonld() {
         $enable = get_option( 'sam_reading_time_enable_schema_time_required', true );
-        if ( ! $enable || ! is_singular() ) return;
-        
+        if ( ! $enable || ! is_singular() ) {
+            return;
+        }
+
         global $post;
-        if ( ! $post instanceof WP_Post ) return;
-        
+        if ( ! $post instanceof WP_Post ) {
+            return;
+        }
+
+        $post_type = get_post_type( $post->ID );
+        $excluded_types = array( 'attachment', 'elementor_library', 'product' );
+        if ( ! $post_type || in_array( $post_type, $excluded_types, true ) || ! post_type_supports( $post_type, 'editor' ) ) {
+            return;
+        }
+
+        // Use a schema type appropriate to the WordPress object instead of
+        // labeling every singular page and custom post type as an Article.
+        if ( 'post' === $post_type ) {
+            $schema_type = 'Article';
+        } elseif ( 'page' === $post_type ) {
+            $schema_type = 'WebPage';
+        } else {
+            $schema_type = 'CreativeWork';
+        }
+
         $minutes = (int) $this->get_reading_time( $post->ID );
-        if ( $minutes <= 0 ) return;
-        
-        $iso_duration = 'PT' . $minutes . 'M';
-        echo '<script type="application/ld+json">' . json_encode( array(
-            "@context" => "https://schema.org",
-            "@type" => "Article",
-            "timeRequired" => $iso_duration,
-        ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) . '</script>';
+        if ( $minutes <= 0 ) {
+            return;
+        }
+
+        $json = wp_json_encode(
+            array(
+                '@context'     => 'https://schema.org',
+                '@type'        => $schema_type,
+                'timeRequired' => 'PT' . $minutes . 'M',
+            ),
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+
+        if ( false !== $json ) {
+            echo '<script type="application/ld+json">' . $json . '</script>';
+        }
     }
 
+    /**
+     * Legacy translation helper retained for backward compatibility.
+     *
+     * Internal cache calculations intentionally do not use this helper:
+     * translated posts have their own IDs, and choosing a translation by the
+     * current language can cache the wrong content for a different post ID.
+     */
     public function get_translated_content( $post_id ) {
         if ( function_exists( 'pll_get_post' ) ) {
             $lang = pll_current_language();
             $translated_id = pll_get_post( $post_id, $lang );
             if ( $translated_id ) {
-                $post = get_post( $translated_id );
-                return $post ? $post->post_content : '';
+                $translated_post = get_post( $translated_id );
+                return $translated_post ? $translated_post->post_content : '';
             }
         }
+
         if ( function_exists( 'icl_object_id' ) ) {
-            $lang = apply_filters( 'wpml_current_language', NULL );
+            $lang = apply_filters( 'wpml_current_language', null );
             $translated_id = icl_object_id( $post_id, get_post_type( $post_id ), true, $lang );
             if ( $translated_id ) {
-                $post = get_post( $translated_id );
-                return $post ? $post->post_content : '';
+                $translated_post = get_post( $translated_id );
+                return $translated_post ? $translated_post->post_content : '';
             }
         }
+
         $post = get_post( $post_id );
-        return $post ? $post->post_content : '';
+        return $post instanceof WP_Post ? (string) $post->post_content : '';
     }
 }
 

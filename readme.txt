@@ -3,9 +3,9 @@ Contributors: samwda, smahjoob
 Donate link: https://samwda.ir
 Tags: reading time, estimated reading time, shortcode, post meta, simple plugin
 Requires at least: 6.3
-Tested up to: 7.0.4
+Tested up to: 7.1.4
 Requires PHP: 7.2
-Stable tag: 2.4
+Stable tag: 2.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -67,6 +67,13 @@ Yes, as long as they support `the_content`.
 
 == Changelog ==
 
+= 2.5 =
+* Improved reading time cache validation using each post's own content, WPM setting, and content hash.
+* Reduced memory usage during WPM changes by recalculating reading time metadata in batches.
+* Improved reading time column sorting by filling missing or outdated metadata before sorting.
+* Improved Schema.org JSON-LD output with schema types appropriate to posts, pages, and supported custom post types.
+* Escaped shortcode text output and restricted the wrapper to the supported HTML tags.
+
 = 2.4 =
 * Massively lighter codebase: Removed unnecessary comments and optimized logic for a smaller footprint.
 * Decoupled Schema.org output from shortcode; now works independently on singular pages.
@@ -99,6 +106,9 @@ Yes, as long as they support `the_content`.
 * Initial public release with shortcode and settings page.
 
 == Upgrade Notice ==
+= 2.5 =
+This update improves reading time cache accuracy, reduces memory usage during WPM recalculation, fixes admin sorting for posts with missing metadata, and improves Schema.org output and shortcode output escaping.
+
 = 2.4 =
 This update introduces automatic recalculation of reading times when WPM changes, independent Schema output, and improved SEO plugin compatibility. The plugin is now significantly lighter.
 
