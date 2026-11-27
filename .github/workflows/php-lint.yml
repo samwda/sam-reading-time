@@ -1,0 +1,30 @@
+name: PHP Syntax
+
+on:
+  pull_request:
+    paths:
+      - '**.php'
+      - '.github/workflows/php-lint.yml'
+  push:
+    branches:
+      - release/2.6-reading-engine
+    paths:
+      - '**.php'
+      - '.github/workflows/php-lint.yml'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.2'
+          coverage: none
+
+      - name: Lint PHP files
+        run: |
+          find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
