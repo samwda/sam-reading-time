@@ -371,8 +371,64 @@ class Sam_Reading_Time_Plugin {
      * by WP_Query's meta_key join when the user sorts the admin list.
      */
     private function backfill_reading_time_cache_for_sorting( $post_types ) {
-        // Do not rebuild an entire site's cache inside an admin page request.
-        $this->schedule_reading_time_recalculation();
+        if ( empty( $post_types ) ) {
+            $post_types = array( 'post' );
+        }
+
+        $post_types = (array) $post_types;
+        if ( in_array( 'any', $post_types, true ) ) {
+            $post_types = get_post_types( array( 'public' => true ), 'names' );
+        }
+
+        $excluded_types = array( 'attachment', 'elementor_library', 'product' );
+        $post_types     = array_values( array_diff( $post_types, $excluded_types ) );
+
+        if ( empty( $post_types ) ) {
+            return;
+        }
+
+        $wpm = max( 1, (int) get_option( 'sam_reading_time_words_per_minute', 200 ) );
+
+        // Only schedule a rebuild when at least one item is stale. Sorting
+        // should not enqueue a full-site scan on every admin page visit.
+        $stale_query = new WP_Query( array(
+            'post_type'      => $post_types,
+            'post_status'    => 'any',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'meta_query'     => array(
+                'relation' => 'OR',
+                array(
+                    'key'     => 'sam_reading_time_minutes',
+                    'compare' => 'NOT EXISTS',
+                ),
+                array(
+                    'key'     => '_sam_reading_time_wpm',
+                    'compare' => 'NOT EXISTS',
+                ),
+                array(
+                    'key'     => '_sam_reading_time_wpm',
+                    'value'   => $wpm,
+                    'compare' => '!=',
+                    'type'    => 'NUMERIC',
+                ),
+                array(
+                    'key'     => '_sam_reading_time_algorithm_version',
+                    'compare' => 'NOT EXISTS',
+                ),
+                array(
+                    'key'     => '_sam_reading_time_algorithm_version',
+                    'value'   => SRT_Reading_Engine::ALGORITHM_VERSION,
+                    'compare' => '!=',
+                    'type'    => 'NUMERIC',
+                ),
+            ),
+        ) );
+
+        if ( ! empty( $stale_query->posts ) ) {
+            $this->schedule_reading_time_recalculation( $wpm );
+        }
     }
 
     public function reading_time_orderby_query( $query ) {
@@ -396,16 +452,7 @@ class Sam_Reading_Time_Plugin {
     /**
      * Backward-compatible wrapper for existing internal callers.
      */
-    private function calculate_and_store_reading_time( $post_id, $words_per_minute = null ) {
-        if ( null !== $words_per_minute ) {
-            // Preserve the explicit WPM argument used by older internal flows.
-            $original_wpm = get_option( 'sam_reading_time_words_per_minute', 200 );
-            update_option( 'sam_reading_time_words_per_minute', max( 1, (int) $words_per_minute ) );
-            $metrics = SRT_Reading_Engine::get_metrics( $post_id, 'content', true );
-            update_option( 'sam_reading_time_words_per_minute', $original_wpm );
-            return (int) $metrics['reading_time_minutes'];
-        }
-
+    private function calculate_and_store_reading_time( $post_id ) {
         $metrics = SRT_Reading_Engine::get_metrics( $post_id, 'content', true );
         return (int) $metrics['reading_time_minutes'];
     }
@@ -455,7 +502,7 @@ class Sam_Reading_Time_Plugin {
 
         $state = get_option( 'sam_reading_time_recalculation_state', array() );
 
-        if ( ! is_array( $state ) || empty( $state ) || (int) $state['wpm'] !== $wpm ) {
+        if ( ! is_array( $state ) || empty( $state ) || ! isset( $state['wpm'] ) || (int) $state['wpm'] !== $wpm ) {
             $state = array(
                 'wpm'         => $wpm,
                 'processed'   => 0,
