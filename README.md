@@ -12,19 +12,25 @@
 
 ## ✨ Features
 
-- Estimate reading time from the cleaned text content of a post or page.
+- Estimate reading time through a dedicated, reusable calculation engine.
+- Count Unicode text more carefully, including Persian joiners and individual CJK reading units.
 - Set a custom reading speed; the default is **200 words per minute (WPM)**.
 - Display singular, plural, and less-than-a-minute formats.
 - Add optional prefix and suffix text, and choose the HTML wrapper tag.
 - Optionally hide the output when the estimated time is less than one minute.
 - Use `[sam_reading_time]` or calculate from an excerpt with `[sam_reading_time type="excerpt"]`.
 - Add a Reading Time column to supported post-type administration lists and sort by it.
-- Cache calculated values per post and refresh them when the content or WPM changes.
-- Recalculate existing entries in bounded batches when the WPM setting changes.
+- Cache calculated values per post with content fingerprints and an algorithm-version marker.
+- Recalculate outdated entries asynchronously in bounded WP-Cron batches when the WPM or calculation algorithm changes.
+- Use the same calculation engine for shortcode output, excerpts, administration columns, and Schema.org data.
 - Optionally output Schema.org `timeRequired` JSON-LD for eligible singular content.
 - Show an administration notice when Yoast SEO, Rank Math, or All in One SEO is detected while this plugin's schema output is enabled.
 - Translation-ready and suitable for multilingual sites where each translation is stored as its own WordPress post.
 - Includes an optional debug output for inspecting the word count and raw reading-time value.
+
+## 🆕 Version 2.6
+
+Version 2.6 introduces the standalone `SRT_Reading_Engine` in `includes/class-srt-reading-engine.php`. It centralizes content cleaning, Unicode-aware counting, time estimation, and versioned per-post caching. Existing cache metadata used by the administration column remains compatible; older entries are upgraded when recalculated.
 
 ## 📋 Requirements
 
@@ -75,7 +81,7 @@ The shortcode relies on the current post context. When calling it from a custom 
 ## 🧠 How Reading Time Is Calculated
 
 1. The plugin removes shortcodes, HTML tags, and selected non-reading content such as code blocks, tables, images, and videos.
-2. It counts the remaining whitespace-separated words.
+2. It counts Unicode-aware reading units. Persian ZWNJ/ZWJ sequences remain within a word, while CJK ideographs, kana, and hangul are counted individually because they are not whitespace-delimited.
 3. The word count is divided by the configured WPM value. The default is **200 WPM**.
 4. Results of one minute or more are rounded up to the next whole minute.
 
@@ -88,7 +94,7 @@ For content estimated at less than one minute, the plugin displays the configure
 
 ### Cache and recalculation
 
-Calculated minutes are stored per post. The cache is checked against the post's content fingerprint and the current WPM setting. Saving a post refreshes its calculation, and changing WPM triggers a recalculation of eligible public post types in batches. Older cache entries are refreshed when they are next requested.
+Calculated minutes are stored per post. The cache is checked against the post's content fingerprint, current WPM, and calculation algorithm version. Saving a post refreshes its calculation. Changing WPM or encountering an outdated cache schedules background recalculation in batches of up to 100 posts through WP-Cron. The shortcode, excerpt calculation, administration column, and Schema.org output all use the same engine.
 
 ## 🌍 SEO & Structured Data
 
