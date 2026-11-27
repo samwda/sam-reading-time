@@ -5,11 +5,11 @@ Tags: reading time, estimated reading time, shortcode, post meta, simple plugin
 Requires at least: 6.3
 Tested up to: 7.1.4
 Requires PHP: 7.2
-Stable tag: 2.5
+Stable tag: 2.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Display estimated reading time for your posts using a clean shortcode. Includes a lightweight settings panel under the "Posts" menu.
+Display estimated reading time for your posts using a clean shortcode and a dedicated calculation engine. Includes a lightweight settings panel under the "Posts" menu.
 
 == Description ==
 
@@ -67,6 +67,13 @@ Yes, as long as they support `the_content`.
 
 == Changelog ==
 
+= 2.6 =
+* Added a standalone reading-time engine for centralized content cleaning, Unicode-aware counting, and time estimation.
+* Added versioned cache metadata while preserving the existing reading-time post meta.
+* Routed shortcode and excerpt calculations through the shared engine.
+* Moved WPM-triggered recalculation to bounded WP-Cron batches.
+* Deferred cache backfilling from the administration sorting request to background processing.
+
 = 2.5 =
 * Improved reading time cache validation using each post's own content, WPM setting, and content hash.
 * Reduced memory usage during WPM changes by recalculating reading time metadata in batches.
@@ -106,6 +113,9 @@ Yes, as long as they support `the_content`.
 * Initial public release with shortcode and settings page.
 
 == Upgrade Notice ==
+= 2.6 =
+This update introduces a dedicated calculation engine, more careful Unicode text counting, versioned cache validation, and background cache recalculation. Existing reading-time metadata is preserved and refreshed as needed.
+
 = 2.5 =
 This update improves reading time cache accuracy, reduces memory usage during WPM recalculation, fixes admin sorting for posts with missing metadata, and improves Schema.org output and shortcode output escaping.
 
